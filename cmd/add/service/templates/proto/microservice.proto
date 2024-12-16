@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package pb;
+
+import "health.proto";
+import "google/api/annotations.proto";
+
+option go_package = "{{.Name}}/pb";
+
+service {{.Name | title}}Service {
+    rpc Health(EmptyRequest) returns (HealthCheckResponse) {
+        option (google.api.http) = {
+            get: "/api/v1/health"
+        };
+    }
+}

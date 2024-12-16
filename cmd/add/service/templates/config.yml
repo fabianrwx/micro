@@ -1,0 +1,42 @@
+# Application settings
+service:
+  name: {{.Name}}
+  environment: development
+  port: 80
+  useTls: false
+
+metrics:
+  port: 4000
+  useTls: false
+
+# Optional settings for logging and error handling
+logging:
+  level: debug # Options: debug, info, warn, error
+  logFile: ./logs/{{.Name}}/{{.Name}}.log # Path to the log file
+  logMaxSize: 20 # Maximum size in megabytes of the log file before rotation
+  logMaxBackups: 5 # Maximum number of old log files to retain
+  logMaxAge: 30 # Maximum number of days to retain old log files
+  logCompress: true # Enable compression of rotated log files
+  
+# Database settings
+database:
+  host: localhost # Database host: container name, localhost or IP
+  port: 5432 # Database port
+  name: system
+  username: postgres
+  password: supersecret
+  useTls: false
+  # Paths to the required certificate files
+  caFile: /certs/ca.crt       # CA certificate
+  certFile: /certs/server.crt # Server certificate
+  keyFile: /certs/server.key # Server private key
+
+# Security settings
+security:
+  encryptionKey: FGQxpKAN3ZAA3bCEueEE5qjCF4I4oYwa # Encryption key
+  jwtSecret: FQGxpKaN3ZAA4cCEueFF5qjCF4I4oYwa # JWT secret
+  # Paths to the required certificate files
+  caFile: /certs/ca.crt       # CA certificate
+  certFile: /certs/server.crt # Server certificate
+  keyFile: /certs/server.key # Server private key
+

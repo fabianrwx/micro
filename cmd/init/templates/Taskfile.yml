@@ -1,0 +1,11 @@
+version: "3"
+
+tasks:
+
+  swagger:
+    cmds:
+      - docker run -d -p 8000:8080 -e SWAGGER_JSON=/mnt/api.swagger.json -v $(pwd)/docs/swagger:/mnt swaggerapi/swagger-ui
+
+  test:
+    cmds:
+      - go test -v -count=1 ./... -coverprofile=coverage.out && go tool cover -html=coverage.out

@@ -1,0 +1,19 @@
+FROM golang:1.23.3-alpine AS builder
+
+WORKDIR /build
+
+# Adjust the path to go.mod and go.sum
+COPY {{.Name}}/go.mod {{.Name}}/go.sum application/config.yml ./
+
+RUN go mod download
+
+# Copy the entire {{.Name}} directory to /build
+COPY {{.Name}}/ .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o {{.Name}} cmd/main.go
+
+FROM scratch
+
+COPY --from=builder ["/build/{{.Name}}", "/{{.Name}}"]
+
+CMD ["/{{.Name}}"]

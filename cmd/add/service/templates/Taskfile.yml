@@ -1,0 +1,25 @@
+version: "3"
+
+
+dotenv: [".env"]
+
+tasks:
+  run:
+    cmds:
+      - go run cmd/main.go
+
+  metrics:
+    cmds:
+      - expvarmon -ports=":4000" -vars="build,requests,goroutines,errors,panics,mem:memstats.Alloc"
+
+  proto:
+    cmds:
+      - protoc --proto_path={{.Name}}/proto --go_out={{.Name}}/pb --go_opt=paths=source_relative --go-grpc_out={{.Name}}/pb --go-grpc_opt=paths=source_relative --grpc-gateway_out={{.Name}}/pb --grpc-gateway_opt=paths=source_relative --openapiv2_out=../docs/swagger --openapiv2_opt=allow_merge=true,merge_file_name=api proto/*.proto
+
+  evans:
+    cmds:
+      - evans -r repl -p 50000
+
+  test:
+    cmds:
+      - go test -v -count=1 ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
