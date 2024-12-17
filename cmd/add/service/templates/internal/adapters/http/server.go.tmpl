@@ -22,6 +22,8 @@ import (
 	"{{.ModuleName}}/pkg/jwt"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
+	"time"
 )
 
 const (
@@ -174,8 +176,11 @@ func (a *Adapter) StartMetrics(ctx context.Context, waitGroup *errgroup.Group) e
 	return nil
 }
 
+
 func metricsMux(conf *config.Config) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	limiter := rate.NewLimiter(rate.Every(time.Second), 10)
 
 	if conf.Service.Environment == Development {
 		// Register all the standard library debug endpoints.
@@ -186,7 +191,21 @@ func metricsMux(conf *config.Config) *http.ServeMux {
 		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	}
 
-	mux.Handle("/debug/vars", expvar.Handler())
+	mux.Handle("/debug/vars", rateLimitMiddleware(expvar.Handler(), limiter))
 
 	return mux
+}
+
+// rateLimitMiddleware limits the number of requests allowed in a given period.
+func rateLimitMiddleware(next http.Handler, limiter *rate.Limiter) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check if the request is allowed by the rate limiter
+		if !limiter.Allow() {
+			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+			return
+		}
+
+		// If the request is allowed, pass it to the next handler
+		next.ServeHTTP(w, r)
+	})
 }
