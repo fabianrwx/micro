@@ -120,13 +120,13 @@ func (h *Adapter) Start(ctx context.Context, waitGroup *errgroup.Group) error {
 		if h.config.Service.UseTls {
 			// Start the server with TLS
 			if err := server.ListenAndServeTLS(h.config.Security.CertFile, h.config.Security.KeyFile); err != nil && err != http.ErrServerClosed {
-				slog.Error("failed to start TLS server", "error", err)
+				slog.Error("http server error", slog.String("error", err.Error()))
 				return err
 			}
 		} else {
 			// Start the server without TLS
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				slog.Error("failed to start HTTP server", "error", err)
+				slog.Error("http server error", slog.String("error", err.Error()))
 				return err
 			}
 		}
@@ -155,7 +155,7 @@ func (a *Adapter) StartMetrics(ctx context.Context, waitGroup *errgroup.Group) e
 	waitGroup.Go(func() error {
 		slog.Info("starting http metrics server", "port", server.Addr)
 		if err := server.ListenAndServe(); err != nil {
-			slog.Error("failed to start http server", "error", err)
+			slog.Error("http server error", slog.String("error", err.Error()))
 			return err
 		}
 

@@ -1,0 +1,127 @@
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+)
+
+// Client defines the API client structure.
+type HTTPClient struct {
+	BaseURL    string
+	HTTPClient *http.Client
+	JWTToken   string
+	RetryCount int
+	RetryDelay time.Duration
+}
+
+// NewClient initializes and returns a new API client.
+func NewHTTPClient(config HTTPClient) *HTTPClient {
+	return &HTTPClient{
+		BaseURL: config.BaseURL,
+		HTTPClient: &http.Client{
+			Timeout: config.HTTPClient.Timeout,
+		},
+		RetryCount: config.RetryCount,
+		RetryDelay: config.RetryDelay,
+	}
+}
+
+// SetBaseURL sets the base URL for the client.
+func (c *HTTPClient) SetBaseURL(url string) {
+	c.BaseURL = url
+}
+
+// SetJWTToken sets the JWT token for the client.
+func (c *HTTPClient) SetJWTToken(token string) {
+	c.JWTToken = token
+}
+
+// makeRequest handles the core HTTP request logic, including retries and token handling.
+func (c *HTTPClient) makeRequest(ctx context.Context, method, endpoint string, body interface{}, headers map[string]string) (*http.Response, error) {
+	url := fmt.Sprintf("%s%s", c.BaseURL, endpoint)
+
+	// Convert body to JSON if provided
+	var bodyReader io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		bodyReader = bytes.NewReader(jsonBody)
+	}
+
+	// Create request
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Add JWT token if present
+	if c.JWTToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.JWTToken)
+	}
+
+	// Perform request with retries
+	var resp *http.Response
+	{{ raw "for i := 0; i <= c.RetryCount; i++ {" }}
+		resp, err = c.HTTPClient.Do(req)
+		{{ raw "if err == nil && resp.StatusCode < 500 {" }}
+			break
+		}
+
+		if {{ raw "i < c.RetryCount {" }}
+			{{ raw "time.Sleep(c.RetryDelay * time.Duration(1<<i)) // Exponential backoff " }}
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("request failed after retries: %w", err)
+	}
+	return resp, nil
+}
+
+// Get performs a GET request.
+func (c *HTTPClient) Get(ctx context.Context, endpoint string, headers map[string]string) (*http.Response, error) {
+	return c.makeRequest(ctx, http.MethodGet, endpoint, nil, headers)
+}
+
+// Post performs a POST request.
+func (c *HTTPClient) Post(ctx context.Context, endpoint string, body interface{}, headers map[string]string) (*http.Response, error) {
+	return c.makeRequest(ctx, http.MethodPost, endpoint, body, headers)
+}
+
+// Put performs a PUT request.
+func (c *HTTPClient) Put(ctx context.Context, endpoint string, body interface{}, headers map[string]string) (*http.Response, error) {
+	return c.makeRequest(ctx, http.MethodPut, endpoint, body, headers)
+}
+
+// Delete performs a DELETE request.
+func (c *HTTPClient) Delete(ctx context.Context, endpoint string, headers map[string]string) (*http.Response, error) {
+	return c.makeRequest(ctx, http.MethodDelete, endpoint, nil, headers)
+}
+
+// ParseResponse parses the response body into the provided target structure.
+func (c *HTTPClient) ParseResponse(resp *http.Response, target interface{}) error {
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return errors.New(fmt.Sprintf("received error status code: %d", resp.StatusCode))
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	if err := json.Unmarshal(body, target); err != nil {
+		return fmt.Errorf("failed to unmarshal response body: %w", err)
+	}
+	return nil
+}

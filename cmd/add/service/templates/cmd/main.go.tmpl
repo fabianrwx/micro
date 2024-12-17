@@ -6,14 +6,18 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"{{.ModuleName}}/config"
 	"{{.ModuleName}}/internal/adapters/http"
 	"{{.ModuleName}}/internal/adapters/repository"
 	"{{.ModuleName}}/internal/application/api"
+	"{{.ModuleName}}/pkg/client"
 	"{{.ModuleName}}/pkg/slogger"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
+	chttp "net/http"
+
 )
 
 var interruptSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGINT}
@@ -42,8 +46,18 @@ func main() {
 		log.Fatal(err)
 	}
 
+	client := client.NewHTTPClient(client.HTTPClient{
+		BaseURL: "",
+		HTTPClient: &chttp.Client{
+			Timeout: 10 * time.Second,
+		},
+		RetryCount: 3,
+		RetryDelay: 1 * time.Second,
+	})
+
+
 	// Create the api logical layer
-	api, err := api.NewAdapter(repo.Store)
+	api, err := api.NewAdapter(repo.Store, client)
 	if err != nil {
 		slog.Error("failed to create api", "error", err)
 		log.Fatal(err)
