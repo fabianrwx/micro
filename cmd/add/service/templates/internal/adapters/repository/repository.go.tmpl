@@ -1,0 +1,44 @@
+package repository
+
+import (
+	"{{.ModuleName}}/config"
+	"{{.ModuleName}}/internal/adapters/repository/memory"
+	"{{.ModuleName}}/internal/adapters/repository/postgres"
+	"{{.ModuleName}}/internal/ports"
+)
+
+type Options func(*Adapter) error
+
+type Adapter struct {
+	Store ports.Database
+}
+
+func NewRepository(opts ...Options) (*Adapter, error) {
+	repo := &Adapter{}
+
+	for _, opt := range opts {
+		if err := opt(repo); err != nil {
+			return &Adapter{}, err
+		}
+	}
+
+	return repo, nil
+}
+
+func WithInMemoryDatabase() Options {
+	return func(r *Adapter) error {
+		r.Store = memory.New()
+		return nil
+	}
+}
+
+func WithPostgresDatabase(conf *config.Config) Options {
+	return func(r *Adapter) error {
+		var err error
+		r.Store, err = postgres.NewAdapter(conf)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}

@@ -1,0 +1,86 @@
+package slogger
+
+import (
+	"errors"
+	"log/slog"
+	"os"
+	"strings"
+
+	"{{.ModuleName}}/config"
+	"github.com/lmittmann/tint"
+	slogmulti "github.com/samber/slog-multi"
+	"gopkg.in/natefinch/lumberjack.v2"
+	"gorm.io/gorm/logger"
+)
+
+var (
+	ErrInvalidLogfile = errors.New("invalid log file")
+)
+
+// SetDefault initializes and sets the default logger with the provided configuration.
+func SetDefault(conf *config.Config) error {
+	// Validate config
+	if conf == nil || conf.Logging.LogFile == "" {
+		return ErrInvalidLogfile
+	}
+
+	// Create a lumberjack logger for log file rotation
+	logFile := &lumberjack.Logger{
+		Filename:   conf.Logging.LogFile,
+		MaxSize:    conf.Logging.LogMaxSize,
+		MaxBackups: conf.Logging.LogMaxBackups,
+		MaxAge:     conf.Logging.LogMaxAge,
+		Compress:   conf.Logging.LogCompress,
+	}
+
+	// Parse the log level
+	level, err := parseLogLevel(conf.Logging.Level)
+	if err != nil {
+		return err
+	}
+
+	// Create the logger with multi-output: log file and colored console output
+	multiHandler := slogmulti.Fanout(
+		slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: level}),
+		tint.NewHandler(os.Stderr, &tint.Options{Level: level}),
+	)
+
+	logger := slog.New(multiHandler)
+
+	// Set the default logger and level
+	slog.SetDefault(logger)
+
+	return nil
+}
+
+// parseLogLevel converts a string to a slog.Level.
+func parseLogLevel(levelStr string) (slog.Level, error) {
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "warn", "warning":
+		return slog.LevelWarn, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelError, errors.New("invalid log level")
+	}
+}
+
+// ParseGormLevel converts a string log level to a gorm logger interface.
+func ParseGormLevel(level string) logger.Interface {
+	switch strings.ToLower(level) {
+	case "debug":
+		return logger.Default.LogMode(logger.Info) // logs queries prepared and executed
+	case "info":
+		return logger.Default.LogMode(logger.Silent) // logs nothing
+	case "warn", "warning":
+		return logger.Default.LogMode(logger.Warn) // logs queries and warnings
+	case "error":
+		return logger.Default.LogMode(logger.Error) // logs queries and errors
+	default:
+		return logger.Default.LogMode(logger.Silent) // logs nothing
+	}
+}

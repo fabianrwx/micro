@@ -36,7 +36,7 @@ func Execute() {
 }
 
 func init() {
-	
+
 	rootCmd.AddCommand(initialize.InitCmd)
 	rootCmd.AddCommand(add.AddCmd)
 	// Here you will define your flags and configuration settings.

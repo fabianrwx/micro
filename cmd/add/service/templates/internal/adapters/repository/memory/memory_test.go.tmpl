@@ -1,0 +1,22 @@
+package memory_test
+
+import (
+	"context"
+	"testing"
+
+	"{{.ModuleName}}/internal/adapters/repository/memory"
+	"github.com/stretchr/testify/require"
+)
+
+func TestHealth_Check(t *testing.T) {
+	h := memory.New()
+	require.NotNil(t, h)
+	err := h.HealthCheck(context.Background())
+	require.NoError(t, err)
+}
+
+func TestConnection_Error(t *testing.T) {
+	m := memory.MemoryRepository{}
+	err := m.HealthCheck(context.Background())
+	require.ErrorIs(t, err, memory.ErrConnectionErr)
+}

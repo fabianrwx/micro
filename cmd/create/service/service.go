@@ -17,7 +17,6 @@ import (
 
 	"github.com/fabianrwx/micro/internal/application/core"
 	"github.com/spf13/cobra"
-	"golang.org/x/mod/modfile"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,24 +57,7 @@ to quickly create a Cobra application.`,
 			return
 		}
 
-		// create the service dir if not exist
-		if err := os.Mkdir(serviceName, os.ModePerm); err != nil {
-			slog.Error("Failed to create service", slog.String("error", err.Error()))
-			return
-		}
-
-		if err := goModGen(serviceName); err != nil {
-			slog.Error("Failed to generate go mod", slog.String("error", err.Error()))
-			return
-		}
-
-		module, err := parseModFile(serviceName)
-		if err != nil {
-			slog.Error("Failed to parse mod file", slog.String("error", err.Error()))
-			return
-		}
-
-		service, err := core.NewService(serviceName, module)
+		service, err := core.NewService(serviceName, "github.com/fabianrwx/micro")
 		if err != nil {
 			slog.Error("Failed to create service", slog.String("error", err.Error()))
 			return
@@ -110,8 +92,8 @@ to quickly create a Cobra application.`,
 			return
 		}
 
-		if err := protoGen(); err != nil {
-			slog.Error("Failed to generate proto", slog.String("error", err.Error()))
+		if err := goModGen(serviceName); err != nil {
+			slog.Error("Failed to generate go mod", slog.String("error", err.Error()))
 			return
 		}
 
@@ -150,28 +132,6 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// serviceCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-func parseModFile(serviceName string) (string, error) {
-	// Open the go.mod file
-	data, err := os.ReadFile(filepath.Join(serviceName, "go.mod"))
-	if err != nil {
-		fmt.Printf("Error reading go.mod: %v\n", err)
-		return "", err
-	}
-
-	// Parse the go.mod file
-	modFile, err := modfile.Parse("go.mod", data, nil)
-	if err != nil {
-		fmt.Printf("Error parsing go.mod: %v\n", err)
-		return "", err
-	}
-
-	p := modFile.Module.Mod.Path
-	slog.Info("Module path", slog.String("path", p))
-
-	// Get the module name
-	return modFile.Module.Mod.Path, nil
 }
 
 func goModGen(root string) error {
@@ -300,7 +260,6 @@ func processTemplateFile(embedFS fs.FS, srcPath, destPath string, data interface
 	// Define the custom template function
 	funcMap := template.FuncMap{
 		"title": capitalize,
-		"raw":   raw,
 	}
 	// Open the source file from the embedded filesystem
 	srcFile, err := embedFS.Open(srcPath)
@@ -322,11 +281,10 @@ func processTemplateFile(embedFS fs.FS, srcPath, destPath string, data interface
 	}
 
 	// Create the destination file
-	destFile, err := os.Create(strings.ReplaceAll(destPath, ".tmpl", ""))
+	destFile, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
 	}
-
 	defer destFile.Close()
 
 	// Execute the template with the provided data
@@ -352,8 +310,4 @@ func capitalize(value core.ServiceName) string {
 	slog.Info("Capitalized value", slog.String("value", capitalized))
 
 	return capitalized
-}
-
-func raw(input string) template.HTML {
-	return template.HTML(input)
 }

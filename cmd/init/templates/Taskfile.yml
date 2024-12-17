@@ -4,7 +4,7 @@ tasks:
 
   swagger:
     cmds:
-      - docker run -d -p 8000:8080 -e SWAGGER_JSON=/mnt/api.swagger.json -v $(pwd)/docs/swagger:/mnt swaggerapi/swagger-ui
+      - podman run -d -p 8000:8080 -e SWAGGER_JSON=/mnt/api.swagger.json -v $(pwd)/docs/swagger:/mnt swaggerapi/swagger-ui
 
   test:
     cmds:

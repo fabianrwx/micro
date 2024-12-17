@@ -1,0 +1,23 @@
+package api
+
+import "{{.ModuleName}}/internal/ports"
+
+type Adapter struct {
+	repo ports.Database
+}
+
+type Options func(*Adapter) error
+
+func NewAdapter(repo ports.Database, opts ...Options) (*Adapter, error) {
+	adapter := &Adapter{
+		repo: repo,
+	}
+
+	for _, opt := range opts {
+		if err := opt(adapter); err != nil {
+			return nil, err
+		}
+	}
+
+	return adapter, nil
+}

@@ -1,0 +1,7 @@
+package ports
+
+import "context"
+
+type Database interface {
+	HealthCheck(ctx context.Context) error
+}

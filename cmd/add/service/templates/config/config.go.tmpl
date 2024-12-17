@@ -1,0 +1,130 @@
+package config
+
+import (
+	"log/slog"
+	"strings"
+
+	"github.com/spf13/viper"
+)
+
+type Service struct {
+	Name        string 	`yaml:"name"`
+	Environment string 	`yaml:"environment"`
+	Port        int    	`yaml:"port"`
+	UseTls      bool   	`yaml:"useTls"`
+	Version 	bool	`yaml:"version"`
+}
+
+type Security struct {
+	EncryptionKey string `yaml:"encryptionKey"`
+	JwtSecret     string `yaml:"jwtSecret"`
+	CaFile        string `yaml:"caFile"`
+	CertFile      string `yaml:"certFile"`
+	KeyFile       string `yaml:"keyFile"`
+}
+
+type Logging struct {
+	Level         string `yaml:"level"`
+	LogFile       string `yaml:"logFile"`
+	LogMaxSize    int    `yaml:"logMaxSize"`
+	LogMaxBackups int    `yaml:"logMaxBackups"`
+	LogMaxAge     int    `yaml:"logMaxAge"`
+	LogCompress   bool   `yaml:"logCompress"`
+}
+
+type Database struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Name     string `yaml:"name"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	UseTls   bool   `yaml:"useTls"`
+	CaFile   string `yaml:"caFile"`
+	CertFile string `yaml:"certFile"`
+	KeyFile  string `yaml:"keyFile"`
+}
+
+type Metrics struct {
+	Port   int  `yaml:"port"`
+	UseTls bool `yaml:"useTls"`
+}
+
+// Config represents the application configuration
+type Config struct {
+	Service  Service  `yaml:"service"`
+	Metrics  Metrics  `yaml:"metrics"`
+	Security Security `yaml:"security"`
+	Logging  Logging  `yaml:"logging"`
+	Database Database `yaml:"database"`
+}
+
+// LoadConfig loads the configuration from a file
+func LoadConfig(filePath string) (*Config, error) {
+	viper.SetConfigFile(filePath)
+	viper.SetConfigType("yml")
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	// Map environment variable bindings
+	for key, envVar := range getEnvOverride() {
+		viper.BindEnv(key, envVar)
+	}
+
+	// Try to read the configuration file
+	if err := viper.ReadInConfig(); err != nil {
+		// If the error is that the file is missing, log it and continue
+		slog.Warn("Config file not found", "path", filePath)
+		slog.Info("defaulting to environment variables")
+	}
+
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+// GetConfig returns the loaded configuration
+func GetConfig() (*Config, error) {
+	configPath := viper.GetString("CONFIG_PATH")
+	if configPath == "" {
+		configPath = "application-config.yml"
+	}
+
+	return LoadConfig(configPath)
+}
+
+func getEnvOverride() map[string]string {
+	return map[string]string{
+		"service.name":           "SERVICE_NAME",
+		"service.environment":    "SERVICE_ENVIRONMENT",
+		"service.port":           "PORT",
+		"service.useTls":         "SERVICE_USE_TLS",
+		"service.version":		  "SERVICE_VERSION",
+		"metrics.port":           "METRICS_PORT",
+		"metrics.useTls":         "METRICS_USE_TLS",
+		"logging.level":          "LOGGING_LEVEL",
+		"logging.logFile":        "LOGGING_LOG_FILE",
+		"logging.logMaxSize":     "LOGGING_LOG_MAX_SIZE",
+		"logging.logMaxBackups":  "LOGGING_LOG_MAX_BACKUPS",
+		"logging.logMaxAge":      "LOGGING_LOG_MAX_AGE",
+		"logging.logCompress":    "LOGGING_LOG_COMPRESS",
+		"database.host":          "DATABASE_HOST",
+		"database.port":          "DATABASE_PORT",
+		"database.name":          "DATABASE_NAME",
+		"database.username":      "DATABASE_USERNAME",
+		"database.password":      "DATABASE_PASSWORD",
+		"database.useTls":        "DATABASE_USE_TLS",
+		"database.caFile":        "DATABASE_CA_FILE",
+		"database.certFile":      "DATABASE_CERT_FILE",
+		"database.keyFile":       "DATABASE_KEY_FILE",
+		"security.encryptionKey": "SECURITY_ENCRYPTION_KEY",
+		"security.jwtSecret":     "SECURITY_JWT_SECRET",
+		"security.caFile":        "SECURITY_CA_FILE",
+		"security.certFile":      "SECURITY_CERT_FILE",
+		"security.keyFile":       "SECURITY_KEY_FILE",
+	}
+
+}

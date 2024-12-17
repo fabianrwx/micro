@@ -1,0 +1,71 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"{{.ModuleName}}/config"
+	"{{.ModuleName}}/internal/adapters/http"
+	"{{.ModuleName}}/internal/adapters/repository"
+	"{{.ModuleName}}/internal/application/api"
+	"{{.ModuleName}}/pkg/slogger"
+	"golang.org/x/exp/slog"
+	"golang.org/x/sync/errgroup"
+)
+
+var interruptSignals = []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGINT}
+
+func main() {
+
+	ctx, stop := signal.NotifyContext(context.Background(), interruptSignals...)
+	defer stop()
+
+	conf, err := config.LoadConfig("config.yml")
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		log.Fatal(err)
+	}
+
+	err = slogger.SetDefault(conf)
+	if err != nil {
+		slog.Error("failed to set default logger", "error", err)
+		log.Fatal(err)
+	}
+
+	// Create the repository
+	repo, err := repository.NewRepository(repository.WithInMemoryDatabase())
+	if err != nil {
+		slog.Error("failed to create repository", "error", err)
+		log.Fatal(err)
+	}
+
+	// Create the api logical layer
+	api, err := api.NewAdapter(repo.Store)
+	if err != nil {
+		slog.Error("failed to create api", "error", err)
+		log.Fatal(err)
+	}
+
+	// transport layer
+	gateway, err := http.NewAdapter(conf, api)
+	if err != nil {
+		slog.Error("failed to create gateway", "error", err)
+		log.Fatal(err)
+	}
+
+	// Start the servers using errgroup, this will allow us to gracefully shutdown the servers
+	waitGroup, ctx := errgroup.WithContext(ctx)
+
+	gateway.Start(ctx, waitGroup)
+	gateway.StartMetrics(ctx, waitGroup)
+
+	err = waitGroup.Wait()
+	if err != nil {
+		slog.Error("error from waitgroup", "error", err)
+		os.Exit(1)
+	}
+
+}

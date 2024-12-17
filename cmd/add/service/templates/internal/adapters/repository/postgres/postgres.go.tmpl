@@ -1,0 +1,80 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+
+	"{{.ModuleName}}/config"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+)
+
+type Adapter struct {
+	db *gorm.DB
+}
+
+func NewAdapter(conf *config.Config) (*Adapter, error) {
+
+	level := logger.Default.LogMode(logger.Silent)
+
+	if conf.Service.Environment == "development" {
+		level = logger.Default.LogMode(logger.Info)
+	}
+
+	dsn := getDSN(conf)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: level,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &Adapter{
+		db: db,
+	}, nil
+}
+
+func getSSLMode(ssl bool) string {
+	if ssl {
+		return "verify-full"
+	}
+	return "disable"
+}
+
+func getDSN(conf *config.Config) string {
+	var dsn string
+	if conf.Database.UseTls {
+		dsn = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s sslcert=%s sslkey=%s sslrootcert=%s",
+			conf.Database.Host,
+			conf.Database.Port,
+			conf.Database.Username,
+			conf.Database.Password,
+			conf.Database.Name,
+			getSSLMode(conf.Database.UseTls),
+			conf.Database.CertFile,
+			conf.Database.KeyFile,
+			conf.Database.CaFile,
+		)
+	} else {
+		dsn = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			conf.Database.Host,
+			conf.Database.Port,
+			conf.Database.Username,
+			conf.Database.Password,
+			conf.Database.Name,
+			"disable",
+		)
+	}
+	return dsn
+}
+
+func (a *Adapter) HealthCheck(ctx context.Context) error {
+	db, err := a.db.DB()
+	if err != nil {
+		return err
+	}
+
+	return db.PingContext(ctx)
+}

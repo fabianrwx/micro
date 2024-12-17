@@ -1,0 +1,74 @@
+package middlewares
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"strings"
+
+	"{{.ModuleName}}/pkg/jwt"
+)
+
+const (
+	authorizationHeaderKey  = "authorization"
+	authorizationTypeBearer = "bearer"
+)
+
+var (
+	skipAuth = []string{
+		"/api/v1/health",
+	}
+)
+
+
+// AuthMiddlware is a middleware that checks if the request has a valid token, it passes the JWTGenerator in order to verify the token
+func AuthMiddlware(jwtGen *jwt.JWTGenerator) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get(authorizationHeaderKey)
+			// Auth Skipper
+			
+			for _, skip := range skipAuth {
+				if strings.HasPrefix(r.URL.Path, skip) {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			if len(authHeader) == 0 {
+				slog.Error("authorization header not found")
+				http.Error(w, jwt.ErrInvalidAuthorizationHeader.Error(), http.StatusUnauthorized)
+				return
+			}
+
+			fields := strings.Fields(authHeader)
+			if len(fields) != 2 {
+				http.Error(w, jwt.ErrorInvalidToken.Error(), http.StatusUnauthorized)
+				slog.Error("invalid authorization header")
+				return
+			}
+
+			authorizationType := strings.ToLower(fields[0])
+
+			if authorizationTypeBearer != authorizationType {
+				http.Error(w, jwt.ErrInvalidAuthorizationType.Error(), http.StatusUnauthorized)
+				slog.Error("invalid authorization type")
+				return
+			}
+
+			accessToken := fields[1]
+
+			payload, err := jwtGen.ValidateToken(accessToken)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
+				slog.Error("failed to validate token", "error", err)
+				return
+			}
+
+			ctx := r.Context()
+
+			ctx = context.WithValue(ctx, jwt.AuthorizationPayloadKey, payload)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}

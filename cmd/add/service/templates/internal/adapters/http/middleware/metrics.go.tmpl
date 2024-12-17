@@ -1,0 +1,79 @@
+package middlewares
+
+import (
+	"log/slog"
+	"net/http"
+	"time"
+
+	"{{.ModuleName}}/pkg/metrics"
+	"github.com/go-chi/chi/v5/middleware"
+)
+
+// MetricsWithLogger is a middleware that logs the request and response
+func MetricsWithLogger() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+
+			requestID := middleware.GetReqID(r.Context())
+
+			// Logg the request
+			slog.Info("HTTP request received",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"request_id", requestID,
+				"remote", r.RemoteAddr,
+			)
+
+			// Add the metrics into the context for metrics gathering.
+			ctx := metrics.Set(r.Context())
+
+			// Create a custom response writer to intercept status code
+			rw := &responseWriter{w, http.StatusOK}
+
+			// Call the next handler in the chain
+			next.ServeHTTP(rw, r)
+
+			duration := time.Since(start)
+
+			// Increment the request and goroutines counter
+			metrics.AddRequest(ctx)
+			metrics.AddGoroutines(ctx)
+
+			// Track errors
+			if rw.status >= 400 {
+				metrics.AddErrors(ctx)
+				slog.Error("HTTP request failed",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"request_id", requestID,
+					"remote", r.RemoteAddr,
+					"status", rw.status,
+					"duration", duration.String(),
+				)
+				//TODO: Log or handle the error as per your requirement
+			} else {
+				slog.Info("HTTP request completed",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"request_id", requestID,
+					"remote", r.RemoteAddr,
+					"status", rw.status,
+					"duration", duration.String(),
+				)
+			}
+		})
+
+	}
+}
+
+// Custom response writer to intercept status code
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}

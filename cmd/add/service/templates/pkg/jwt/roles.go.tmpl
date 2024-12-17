@@ -1,0 +1,81 @@
+package jwt
+
+type Role string
+type Permission string
+
+const (
+	ViewApplication Permission = "VIEW_APPLICATION"
+)
+
+const (
+	RoleAdministrator Role = "ADMINISTRATOR"
+	RoleEndUser       Role = "END_USER"
+)
+
+var rolePermissions = map[Role][]Permission{
+	RoleAdministrator: {
+		ViewApplication,
+	},
+	RoleEndUser: {
+		ViewApplication,
+	},
+}
+
+func (r Role) GetRole() string {
+	return string(r)
+}
+
+// HasPermission checks if a role (in string format) has the specified permission.
+func HasPermission(roleStr string, permission Permission) bool {
+	role := Role(roleStr) // Convert string to Role type
+	permissions, ok := rolePermissions[role]
+	if !ok {
+		return false
+	}
+	for _, p := range permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnyOfPermissions checks if the user has any of the specified permissions for the provided roles.
+func HasAnyOfPermissions(roles []string, permissions ...Permission) bool {
+	for _, permission := range permissions {
+		for _, roleStr := range roles {
+			if HasPermission(roleStr, permission) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasAnyPermission checks if any of the roles in the slice has the specified permission.
+func HasAnyPermission(roles []string, permission Permission) bool {
+	for _, roleStr := range roles {
+		if HasPermission(roleStr, permission) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAllPermissions checks if the user has all specified permissions for the provided roles.
+func MustHavePermissions(roles []string, permissions ...Permission) bool {
+	for _, permission := range permissions {
+		hasPermission := false
+		for _, roleStr := range roles {
+			if HasPermission(roleStr, permission) {
+				hasPermission = true
+				break
+			}
+		}
+		if !hasPermission {
+			return false
+		}
+	}
+
+	return true
+}

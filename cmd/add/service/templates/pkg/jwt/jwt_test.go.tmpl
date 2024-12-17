@@ -1,0 +1,73 @@
+package jwt_test
+
+import (
+	"testing"
+	"time"
+
+	"{{ .ModuleName }}/pkg/jwt"
+	"github.com/stretchr/testify/require"
+)
+
+func TestJWT_ExpiredToken(t *testing.T) {
+	tests := []struct {
+		name        string
+		username    string
+		duration    time.Duration
+		expectedErr error
+	}{
+		{
+			name:        "expired token",
+			username:    "testuser",
+			duration:    -time.Minute,
+			expectedErr: jwt.ErrExpiredToken,
+		},
+	}
+
+	roles := []string{
+		jwt.RoleAdministrator.GetRole(),
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			jwt, err := jwt.NewJWTBuilder([]byte("5HxW0D7LMlqpZRgPoYh6efbUVtzQI8vj"))
+			require.NoError(t, err)
+			token, err := jwt.CreateToken(tc.username, roles, tc.duration)
+			require.NoError(t, err)
+			_, err = jwt.ValidateToken(token)
+			require.Equal(t, tc.expectedErr, err)
+			require.Len(t, roles, 1)
+
+		})
+	}
+
+}
+
+func TestJWT_Make(t *testing.T) {
+	tests := []struct {
+		name        string
+		username    string
+		duration    time.Duration
+		expectedErr error
+	}{
+		{
+			name:        "valid token",
+			username:    "testuser",
+			duration:    time.Minute,
+			expectedErr: nil,
+		},
+	}
+
+	roles := []string{
+		jwt.RoleEndUser.GetRole(),
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jwt, err := jwt.NewJWTBuilder([]byte("5HxW0D7LMlqpZRgPoYh6efbUVtzQI8vj"))
+			require.NoError(t, err)
+			_, err = jwt.CreateToken(tt.username, roles, tt.duration)
+			require.Equal(t, tt.expectedErr, err)
+		})
+	}
+
+}

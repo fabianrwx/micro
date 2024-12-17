@@ -1,0 +1,24 @@
+package config_test
+
+import (
+	"testing"
+
+	"{{.ModuleName}}/config"
+	"github.com/stretchr/testify/require"
+)
+
+func TestLoadConfig(t *testing.T) {
+	conf, err := config.LoadConfig("../config.yml")
+	require.NoError(t, err)
+
+	require.NotNil(t, conf)
+	require.NotEmpty(t, conf.Database.CaFile)
+	require.NotEmpty(t, conf.Database.CertFile)
+	require.NotEmpty(t, conf.Database.KeyFile)
+	require.NotEmpty(t, conf.Security.CaFile)
+	require.NotEmpty(t, conf.Security.CertFile)
+	require.NotEmpty(t, conf.Security.KeyFile)
+	require.NotEmpty(t, conf.Logging.LogFile)
+	require.NotEmpty(t, conf.Security.JwtSecret)
+
+}

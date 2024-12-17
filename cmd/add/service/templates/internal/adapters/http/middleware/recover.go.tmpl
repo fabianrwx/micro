@@ -1,0 +1,32 @@
+package middlewares
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"runtime/debug"
+
+	"{{.ModuleName}}/pkg/metrics"
+)
+
+// Recover is a custom middleware that recovers from panics and writes a 500 error, saves the stack trace to the logs
+func Recover() func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := metrics.Set(r.Context())
+			defer func(ctx context.Context) {
+				if r := recover(); r != nil {
+					metrics.AddPanics(ctx)
+					slog.Error("Panic recovered",
+						"error", r,
+						"stack", string(debug.Stack()),
+					)
+					http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				}
+			}(ctx)
+
+			next.ServeHTTP(w, r)
+
+		})
+	}
+}

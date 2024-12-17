@@ -1,0 +1,192 @@
+package http
+
+import (
+	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"expvar"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/pprof"
+	"os"
+	"strconv"
+
+	"{{.ModuleName}}/config"
+	middlewares "{{.ModuleName}}/internal/adapters/http/middleware"
+	"{{.ModuleName}}/internal/adapters/service"
+	"{{.ModuleName}}/internal/application/api"
+	"{{.ModuleName}}/pb"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"{{.ModuleName}}/pkg/jwt"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"golang.org/x/sync/errgroup"
+)
+
+const (
+	Development = "development"
+)
+
+type Adapter struct {
+	mux    *chi.Mux
+	config *config.Config
+}
+
+type Options func(*Adapter) error
+
+// NewAdapter creates a new HTTP adapter and registers gRPC handlers for gateway
+func NewAdapter(conf *config.Config, api *api.Adapter, opts ...Options) (*Adapter, error) {
+	adapter := &Adapter{
+		mux:    chi.NewRouter(),
+		config: conf,
+	}
+
+	ctx := context.Background()
+
+	h := service.NewAdapter(api)
+
+	grpcMux := runtime.NewServeMux()
+
+	err := pb.Register{{.Name | title}}ServiceHandlerServer(ctx, grpcMux, h)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, opt := range opts {
+		if err := opt(adapter); err != nil {
+			return nil, err
+		}
+	}
+
+	adapter.mux.Use(middleware.RequestID)
+	adapter.mux.Use(middlewares.MetricsWithLogger())
+	adapter.mux.Use(middlewares.Recover())
+	adapter.mux.Use(middleware.AllowContentType("application/json"))
+
+	// Initialize the JWT generator
+	jwt, err := jwt.NewJWTBuilder([]byte(conf.Security.JwtSecret))
+	if err != nil {
+		return nil, err
+	}
+
+	adapter.mux.Use(middlewares.AuthMiddlware(jwt))
+	adapter.mux.Use(middlewares.AuthorizationMiddleware)
+
+	adapter.mux.Mount("/", grpcMux)
+
+	return adapter, nil
+}
+
+func (h *Adapter) Start(ctx context.Context, waitGroup *errgroup.Group) error {
+	// Create a basic HTTP server configuration
+	server := &http.Server{
+		Addr:    ":" + strconv.Itoa(h.config.Service.Port),
+		Handler: h.mux,
+	}
+
+	if h.config.Service.UseTls {
+		// Load the server certificate and key
+		cert, err := tls.LoadX509KeyPair(h.config.Security.CertFile, h.config.Security.KeyFile)
+		if err != nil {
+			slog.Error("failed to load server certificate and key", "error", err)
+			return err
+		}
+
+		// Create a custom TLS configuration
+		server.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
+		// If a CA file is specified, configure client certificate validation
+		if h.config.Security.CaFile != "" {
+			caCertPool := x509.NewCertPool()
+			caCert, err := os.ReadFile(h.config.Security.CaFile)
+			if err != nil {
+				slog.Error("failed to read CA file", "error", err)
+				return err
+			}
+			if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
+				slog.Error("failed to append CA certificate to pool")
+				return fmt.Errorf("failed to append CA certificate")
+			}
+			server.TLSConfig.ClientCAs = caCertPool
+			server.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+	}
+
+	waitGroup.Go(func() error {
+		slog.Info("starting http server", "port", server.Addr)
+		if h.config.Service.UseTls {
+			// Start the server with TLS
+			if err := server.ListenAndServeTLS(h.config.Security.CertFile, h.config.Security.KeyFile); err != nil && err != http.ErrServerClosed {
+				slog.Error("failed to start TLS server", "error", err)
+				return err
+			}
+		} else {
+			// Start the server without TLS
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("failed to start HTTP server", "error", err)
+				return err
+			}
+		}
+		return nil
+	})
+
+	waitGroup.Go(func() error {
+		{{ raw "<-ctx.Done()" }}
+		slog.Info("shutting down http server")
+		if err := server.Shutdown(ctx); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return nil
+}
+
+func (a *Adapter) StartMetrics(ctx context.Context, waitGroup *errgroup.Group) error {
+
+	server := &http.Server{
+		Addr:    ":" + strconv.Itoa(a.config.Metrics.Port),
+		Handler: metricsMux(a.config),
+	}
+
+	waitGroup.Go(func() error {
+		slog.Info("starting http metrics server", "port", server.Addr)
+		if err := server.ListenAndServe(); err != nil {
+			slog.Error("failed to start http server", "error", err)
+			return err
+		}
+
+		return nil
+	})
+
+	waitGroup.Go(func() error {
+		{{ raw "<-ctx.Done()" }}
+		slog.Info("shutting down http metrics server")
+		if err := server.Shutdown(ctx); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return nil
+}
+
+func metricsMux(conf *config.Config) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	if conf.Service.Environment == Development {
+		// Register all the standard library debug endpoints.
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
+
+	mux.Handle("/debug/vars", expvar.Handler())
+
+	return mux
+}

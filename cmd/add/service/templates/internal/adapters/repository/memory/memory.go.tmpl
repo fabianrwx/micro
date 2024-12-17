@@ -1,0 +1,38 @@
+// package memory implements the in memory repository for the health domain
+package memory
+
+import (
+	"context"
+	"errors"
+
+	"{{.ModuleName}}/internal/ports"
+	"github.com/google/uuid"
+)
+
+var (
+	ErrConnectionErr = errors.New("could not connect to the repository")
+)
+
+// Options is a type for the functional options pattern
+type Options func(*MemoryRepository) error
+
+// MemoryRepository is a struct that holds the in memory repository
+type MemoryRepository struct {
+	ports.Database
+	repo map[uuid.UUID]any
+}
+
+// New creates a new instance of the MemoryRepository
+func New() *MemoryRepository {
+	return &MemoryRepository{
+		repo: make(map[uuid.UUID]any),
+	}
+}
+
+// Check checks if the repository is available
+func (h *MemoryRepository) HealthCheck(ctx context.Context) error {
+	if h.repo == nil {
+		return ErrConnectionErr
+	}
+	return nil
+}

@@ -1,0 +1,107 @@
+// package jwt provides a way to generate and validate JWT tokens
+package jwt
+
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/o1egl/paseto"
+)
+
+var (
+	minSecretLength = 32
+)
+
+type key int
+
+var AuthorizationPayloadKey key
+
+// Package errors
+var (
+	ErrSecretTooShort             = fmt.Errorf("jwt: secret must be at least %d characters long", minSecretLength)
+	ErrExpiredToken               = errors.New("jwt: token has expired")
+	ErrorInvalidToken             = errors.New("jwt: invalid token")
+	ErrInvalidAuthorizationHeader = errors.New("jwt: invalid authorization header")
+	ErrInvalidAuthorizationType   = errors.New("jwt: invalid authorization type")
+)
+
+// Payload is the struct that will be used to store the claims
+type Payload struct {
+	ID        uuid.UUID `json:"id"`
+	Username  string    `json:"username"`
+	Roles     []string  `json:"roles"`
+	IssuedAt  time.Time `json:"issued_at"`
+	ExpiredAt time.Time `json:"expired_at"`
+}
+
+// JWTGenerator is the struct that will be used to create the token
+type JWTGenerator struct {
+	paseto       *paseto.V2
+	symmetricKey []byte
+}
+
+// NewJWTBuilder creates a new JWTGenerator providing a way to create and validate tokens
+func NewJWTBuilder(symmetricKey []byte) (*JWTGenerator, error) {
+	if {{ raw "len(symmetricKey) < minSecretLength" }} {
+		return nil, ErrSecretTooShort
+	}
+
+	gen := &JWTGenerator{
+		paseto:       paseto.NewV2(),
+		symmetricKey: []byte(symmetricKey),
+	}
+
+	return gen, nil
+}
+
+// NewPayload creates a new payload with the given username and duration
+func NewPayload(username string, roles []string, duration time.Duration) (*Payload, error) {
+	tokenID, err := uuid.NewRandom()
+	if err != nil {
+		return nil, err
+	}
+
+	payload := &Payload{
+		ID:        tokenID,
+		Username:  username,
+		Roles:     roles,
+		IssuedAt:  time.Now(),
+		ExpiredAt: time.Now().Add(duration),
+	}
+
+	return payload, nil
+}
+
+// Valid checks if the token is valid
+func (payload *Payload) Valid() error {
+	if time.Now().After(payload.ExpiredAt) {
+		return ErrExpiredToken
+	}
+	return nil
+}
+
+// ValidateToken validates the token and returns the claims
+func (p *JWTGenerator) CreateToken(username string, roles []string, duration time.Duration) (string, error) {
+	payload, err := NewPayload(username, roles, duration)
+	if err != nil {
+		return "", err
+	}
+
+	return p.paseto.Encrypt(p.symmetricKey, payload, nil)
+}
+
+// ValidateToken validates the token and returns the claims
+func (p *JWTGenerator) ValidateToken(token string) (*Payload, error) {
+	payload := &Payload{}
+	if err := p.paseto.Decrypt(token, p.symmetricKey, &payload, nil); err != nil {
+		return nil, err
+	}
+
+	if err := payload.Valid(); err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
