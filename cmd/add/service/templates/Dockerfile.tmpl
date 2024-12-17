@@ -3,7 +3,7 @@ FROM golang:1.23.3-alpine AS builder
 WORKDIR /build
 
 # Adjust the path to go.mod and go.sum
-COPY {{.Name}}/go.mod {{.Name}}/go.sum application/config.yml ./
+COPY {{.Name}}/go.mod {{.Name}}/go.sum ./
 
 RUN go mod download
 
