@@ -14,12 +14,6 @@ var RoutePermissions = map[string][]jwt.Permission{
 // AuthorizationMiddleware enforces permission-based access control
 func AuthorizationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract JWT claims (assuming this is already handled elsewhere)
-		claims, ok := r.Context().Value(jwt.AuthorizationPayloadKey).(*jwt.Payload)
-		if !ok || claims == nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
 
 		// Get the required permissions for the current route
 		requiredPermissions, ok := RoutePermissions[r.URL.Path]
@@ -28,6 +22,14 @@ func AuthorizationMiddleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+
+		// Extract JWT claims (assuming this is already handled elsewhere)
+		claims, ok := r.Context().Value(jwt.AuthorizationPayloadKey).(*jwt.Payload)
+		if !ok || claims == nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 
 		// Check if the user has any of the required permissions
 		if !jwt.HasAnyOfPermissions(claims.Roles, requiredPermissions...) {
