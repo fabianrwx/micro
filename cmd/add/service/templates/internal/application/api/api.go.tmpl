@@ -1,21 +1,41 @@
 package api
 
 import (
+	"time"
+	"{{ .ModuleName }}/config"
 	"{{ .ModuleName }}/internal/ports"
 	"{{ .ModuleName }}/pkg/client"
 )
 
 type Adapter struct {
 	repo   ports.Database
-	client *client.HTTPClient
+	client *client.Client
+	conf   *config.Config
 }
 
 type Options func(*Adapter) error
 
-func NewAdapter(repo ports.Database, client *client.HTTPClient, opts ...Options) (*Adapter, error) {
+
+func NewAdapter(repo ports.Database, conf *config.Config, opts ...Options) (*Adapter, error) {
+	var baseURL string
+
+	switch conf.Service.UseTls {
+	case true:
+		baseURL = "https://localhost:8080/api/v1"
+	default:
+		baseURL = "http://localhost:8080/api/v1"
+	}
+
+	client := client.NewClient(
+		client.WithBaseURL(baseURL),
+		client.WithTimeout(5*time.Second),
+		client.WithTLSConfig(nil),
+	)
+
 	adapter := &Adapter{
 		repo:   repo,
 		client: client,
+		conf:   conf,
 	}
 
 	for _, opt := range opts {
@@ -25,4 +45,25 @@ func NewAdapter(repo ports.Database, client *client.HTTPClient, opts ...Options)
 	}
 
 	return adapter, nil
+}
+
+func WithClient(client *client.Client) Options {
+	return func(a *Adapter) error {
+		a.client = client
+		return nil
+	}
+}
+
+func WithConf(conf *config.Config) Options {
+	return func(a *Adapter) error {
+		a.conf = conf
+		return nil
+	}
+}
+
+func WithRepository(repo ports.Database) Options {
+	return func(a *Adapter) error {
+		a.repo = repo
+		return nil
+	}
 }

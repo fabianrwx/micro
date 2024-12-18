@@ -6,17 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"{{.ModuleName}}/config"
-	"{{.ModuleName}}/internal/adapters/http"
-	"{{.ModuleName}}/internal/adapters/repository"
-	"{{.ModuleName}}/internal/application/api"
-	"{{.ModuleName}}/pkg/client"
-	"{{.ModuleName}}/pkg/slogger"
+	"{{ .ModuleName }}/config"
+	"{{ .ModuleName }}/internal/adapters/http"
+	"{{ .ModuleName }}/internal/adapters/repository"
+	"{{ .ModuleName }}/internal/application/api"
+	"{{ .ModuleName }}/pkg/slogger"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
-	chttp "net/http"
 
 )
 
@@ -46,23 +43,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-
-	// Create a new client TODO: enable tls
-	clientConf := client.HTTPClient{
-		BaseURL: "", // Set empty api will set the base url
-		HTTPClient: &chttp.Client{
-			Timeout: 5 * time.Second,
-		},
-		RetryCount: 3,
-		RetryDelay: 1 * time.Second,
-		TLSConfig:  nil,
-	}
-
-	// construct the client
-	client := client.NewHTTPClient(clientConf, conf)
-
 	// Create the api logical layer
-	api, err := api.NewAdapter(repo.Store, client)
+	api, err := api.NewAdapter(repo.Store, conf)
 	if err != nil {
 		slog.Error("failed to create api", "error", err)
 		log.Fatal(err)

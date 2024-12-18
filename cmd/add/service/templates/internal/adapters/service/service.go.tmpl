@@ -1,8 +1,6 @@
 package service
 
 import (
-	"context"
-
 	"{{.ModuleName}}/internal/application/api"
 	"{{.ModuleName}}/pb"
 )
@@ -16,8 +14,4 @@ func NewAdapter(api *api.Adapter) *Adapter {
 	return &Adapter{
 		api: api,
 	}
-}
-
-func (a *Adapter) Health(ctx context.Context, req *pb.EmptyRequest) (*pb.HealthCheckResponse, error) {
-	return &pb.HealthCheckResponse{Service: "{{.Name}}", Message: "pong"}, nil
 }

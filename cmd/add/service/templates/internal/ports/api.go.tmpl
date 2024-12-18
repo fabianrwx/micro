@@ -1,3 +1,14 @@
 package ports
 
-type API interface{}
+
+
+import (
+	"context"
+
+	"{{ .ModuleName }}/pb"
+)
+
+
+type API interface{
+    Health(ctx context.Context, req *pb.EmptyRequest) (*pb.HealthCheckResponse, error)
+}

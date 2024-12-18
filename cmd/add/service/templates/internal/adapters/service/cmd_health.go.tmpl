@@ -1,0 +1,20 @@
+package service
+
+import (
+	"context"
+
+	"{{.ModuleName}}/pb"
+)
+
+func (a *Adapter) Health(ctx context.Context, req *pb.EmptyRequest) (*pb.HealthCheckResponse, error) {
+	resp, err := a.api.Health(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.HealthCheckResponse{
+		Error:   resp.Error,
+		Service: resp.Service,
+		Message: resp.Message,
+	}, nil
+}
