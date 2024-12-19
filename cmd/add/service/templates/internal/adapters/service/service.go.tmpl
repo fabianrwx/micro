@@ -1,13 +1,14 @@
 package service
 
 import (
-	"{{.ModuleName}}/internal/application/api"
-	"{{.ModuleName}}/pb"
+	"{{ .ModuleName }}/internal/application/api"
+	"{{ .ModuleName }}/internal/ports"
+	"{{ .ModuleName }}/pb"
 )
 
 type Adapter struct {
-	api *api.Adapter
-	pb.Unimplemented{{.Name | title}}ServiceServer
+	api ports.API
+	pb.UnimplementedAuthenticationServiceServer
 }
 
 func NewAdapter(api *api.Adapter) *Adapter {
