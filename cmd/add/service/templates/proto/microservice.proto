@@ -4,6 +4,7 @@ package pb;
 
 import "health.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/any.proto";
 
 option go_package = "{{.Name}}/pb";
 
@@ -13,4 +14,16 @@ service {{.Name | title}}Service {
             get: "/api/v1/health"
         };
     }
+}
+
+// Response message for all responses
+message Response {
+  google.protobuf.Any data = 1;
+  repeated Error errors = 2;
+}
+
+// Error message field and message
+message Error {
+  string field = 1;
+  string message = 2;
 }

@@ -1,0 +1,63 @@
+package validate
+
+import (
+	"fmt"
+	"reflect"
+
+	"{{ .ModuleName }}/pb"
+	"github.com/go-playground/validator/v10"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+func Struct(s interface{}) (*status.Status, error) {
+	validate := validator.New()
+
+	err := validate.Struct(s)
+	if err == nil {
+		// No validation errors
+		return nil, nil
+	}
+
+	// Handle validation errors
+	var errors []*pb.Error
+	if _, ok := err.(*validator.InvalidValidationError); ok {
+		return nil, fmt.Errorf("invalid validation error: %w", err)
+	}
+
+	for _, err := range err.(validator.ValidationErrors) {
+		// Extract field name and tag
+		fieldName := err.StructField()
+		field, _ := reflect.TypeOf(s).Elem().FieldByName(fieldName)
+		fieldName = field.Tag.Get("json")
+
+		tag := err.Tag()
+
+		// Customize error message based on tag
+		var errMsg string
+		switch tag {
+		case "required":
+			errMsg = fmt.Sprintf("%s is required", fieldName)
+		case "email":
+			errMsg = fmt.Sprintf("%s is not a valid email", fieldName)
+		// Add more cases for other validation tags as needed
+		default:
+			errMsg = fmt.Sprintf("%s is invalid", fieldName)
+		}
+
+		errors = append(errors, &pb.Error{
+			Field:   fieldName,
+			Message: errMsg,
+		})
+	}
+
+	// Create a new status with the InvalidArgument code
+	st := status.New(codes.InvalidArgument, "validation failed")
+
+	// Add details to the status for each error
+	for _, e := range errors {
+		st, _ = st.WithDetails(e) // Ignoring potential errors for simplicity
+	}
+
+	return st, nil
+}
