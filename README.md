@@ -13,7 +13,7 @@
 
 1. **Prerequisites:** Ensure you have Go installed on your system.
 2. **Clone the repository:** `git clone https://github.com/your-username/micro.git`
-3. **Build the CLI:** `go build cmd/main.go`
+3. **Build the CLI:** `go install micro.go`
 4. **Move the binary:** `mv main micro` (or your preferred location)
 5. **(Optional) Add to PATH:** For easy access, add the binary's location to your system's PATH environment variable.
 
