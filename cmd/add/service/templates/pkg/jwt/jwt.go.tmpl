@@ -2,12 +2,16 @@
 package jwt
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/o1egl/paseto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -16,7 +20,10 @@ var (
 
 type key int
 
-var AuthorizationPayloadKey key
+const (
+	AuthorizationPayloadKey key = iota // 0
+	RequestTokenKey                    // 1
+)
 
 // Package errors
 var (
@@ -44,7 +51,7 @@ type JWTGenerator struct {
 
 // NewJWTBuilder creates a new JWTGenerator providing a way to create and validate tokens
 func NewJWTBuilder(symmetricKey []byte) (*JWTGenerator, error) {
-	if {{ raw "len(symmetricKey) < minSecretLength" }} {
+	{{ raw "if len(symmetricKey) < minSecretLength {" }}
 		return nil, ErrSecretTooShort
 	}
 
@@ -72,6 +79,23 @@ func NewPayload(username string, roles []string, duration time.Duration) (*Paylo
 	}
 
 	return payload, nil
+}
+
+func TokenFromContext(ctx context.Context) (string, error) {
+	// 1. Extract metadata from the context
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Errorf(codes.Unauthenticated, "missing metadata")
+	}
+
+	// 2. Get the Authorization header value
+	authHeader := md.Get("authorization")
+	if len(authHeader) == 0 {
+		return "", status.Errorf(codes.Unauthenticated, "missing authorization header")
+	}
+	token := authHeader[0] // Assuming the first value is the token
+
+	return token, nil
 }
 
 // Valid checks if the token is valid

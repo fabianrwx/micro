@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"{{.ModuleName}}/pkg/jwt"
+	"{{ .ModuleName }}/pkg/jwt"
 )
 
 const (
@@ -17,9 +17,9 @@ const (
 var (
 	skipAuth = []string{
 		"/api/v1/health",
+		"/api/v1/login",
 	}
 )
-
 
 // AuthMiddlware is a middleware that checks if the request has a valid token, it passes the JWTGenerator in order to verify the token
 func AuthMiddlware(jwtGen *jwt.JWTGenerator) func(http.Handler) http.Handler {
@@ -27,7 +27,7 @@ func AuthMiddlware(jwtGen *jwt.JWTGenerator) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get(authorizationHeaderKey)
 			// Auth Skipper
-			
+
 			for _, skip := range skipAuth {
 				if strings.HasPrefix(r.URL.Path, skip) {
 					next.ServeHTTP(w, r)
@@ -68,6 +68,7 @@ func AuthMiddlware(jwtGen *jwt.JWTGenerator) func(http.Handler) http.Handler {
 			ctx := r.Context()
 
 			ctx = context.WithValue(ctx, jwt.AuthorizationPayloadKey, payload)
+			ctx = context.WithValue(ctx, jwt.RequestTokenKey, accessToken)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

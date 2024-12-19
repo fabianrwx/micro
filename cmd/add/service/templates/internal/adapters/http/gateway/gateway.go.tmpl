@@ -1,4 +1,4 @@
-package service
+package gateway
 
 import (
 	"{{ .ModuleName }}/internal/application/api"
@@ -8,7 +8,7 @@ import (
 
 type Adapter struct {
 	api ports.API
-	pb.UnimplementedAuthenticationServiceServer
+	pb.Unimplemented{{.Name | title }}ServiceServer
 }
 
 func NewAdapter(api *api.Adapter) *Adapter {
