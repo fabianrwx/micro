@@ -14,7 +14,7 @@ import (
 
 	"{{.ModuleName}}/config"
 	middlewares "{{.ModuleName}}/internal/adapters/http/middleware"
-	"{{.ModuleName}}/internal/adapters/http/gateway"
+	"{{.ModuleName}}/internal/application/handler"
 	"{{.ModuleName}}/internal/application/api"
 	"{{.ModuleName}}/pb"
 	"github.com/go-chi/chi/v5"
@@ -46,7 +46,7 @@ func NewAdapter(conf *config.Config, api *api.Adapter, opts ...Options) (*Adapte
 
 	ctx := context.Background()
 
-	h := gateway.NewAdapter(api)
+	h := handler.NewAdapter(api)
 
 	grpcMux := runtime.NewServeMux()
 
