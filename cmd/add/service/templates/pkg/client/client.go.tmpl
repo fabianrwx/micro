@@ -176,12 +176,12 @@ func (c *Client) DoRequest(method, path string, body interface{}, headers map[st
 		// Context timed out
 		err = ctx.Err()
 	}
-   v
+   
 	// Cancel the context to stop any remaining requests
 	cancel()
 
 	// Wait for all goroutines to finish
-	wg.Wait()nmbgm  nmgbngb nbbbbnvvcvmcvmnvnmnnvbm kjfgvb z z
+	wg.Wait()
 
 	return resp, err
 }
