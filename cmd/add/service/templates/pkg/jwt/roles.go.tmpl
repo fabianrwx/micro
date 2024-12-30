@@ -21,8 +21,31 @@ var rolePermissions = map[Role][]Permission{
 	},
 }
 
-func (r Role) GetRole() string {
+func (r Role) String() string {
 	return string(r)
+}
+
+// GetRoles returns a slice of valid roles
+func GetRoles(r []string) []string {
+
+	if len(r) == 0 {
+		return []string{}
+	}
+
+	roles := make(map[string]struct{}) // Using struct{} saves memory over bool
+	var result []string
+
+	for _, role := range r {
+		if _, exists := roles[role]; !exists {
+			// Add valid roles or default
+			switch role {
+			case RoleAdministrator.String(), RoleEndUser.String():
+				roles[role] = struct{}{}
+				result = append(result, role)
+			}
+		}
+	}
+	return result
 }
 
 // HasPermission checks if a role (in string format) has the specified permission.

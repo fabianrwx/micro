@@ -321,8 +321,8 @@ func processTemplateFile(embedFS fs.FS, srcPath, destPath string, data interface
 		return fmt.Errorf("failed to parse template %s: %w", srcPath, err)
 	}
 
-	// Create the destination file
-	destFile, err := os.Create(strings.ReplaceAll(destPath, ".tmpl", ""))
+	// Create the destination file replace main.go with the service name this sets service in expvar metrics
+	destFile, err := os.Create(strings.ReplaceAll(strings.ReplaceAll(destPath, ".tmpl", ""), "main.go", name+".go"))
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
 	}

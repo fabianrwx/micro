@@ -11,6 +11,7 @@ import (
 	"{{ .ModuleName }}/internal/adapters/http"
 	"{{ .ModuleName }}/internal/adapters/repository"
 	"{{ .ModuleName }}/internal/application/api"
+	"{{ .ModuleName }}/pkg/jwt"
 	"{{ .ModuleName }}/pkg/slogger"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
@@ -43,8 +44,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// jwt builder
+	jwt, err := jwt.NewJWTBuilder([]byte(conf.Security.JwtSecret))
+	if err != nil {
+		slog.Error("failed to create jwt builder", slog.String("error", err.Error()))
+		log.Fatal(err)
+	}
+
 	// Create the api logical layer
-	api, err := api.NewAdapter(repo.Store, conf)
+	api, err := api.NewAdapter(repo.Store, conf, jwt)
 	if err != nil {
 		slog.Error("failed to create api", "error", err)
 		log.Fatal(err)

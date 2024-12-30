@@ -5,18 +5,22 @@ import (
 	"{{ .ModuleName }}/config"
 	"{{ .ModuleName }}/internal/ports"
 	"{{ .ModuleName }}/pkg/client"
+	"{{ .ModuleName }}/pkg/jwt"
 )
 
 type Adapter struct {
 	repo   ports.Database
 	client *client.Client
 	conf   *config.Config
+	jwt    *jwt.JWTGenerator
+
+
 }
 
 type Options func(*Adapter) error
 
 
-func NewAdapter(repo ports.Database, conf *config.Config, opts ...Options) (*Adapter, error) {
+func NewAdapter(repo ports.Database, conf *config.Config, jwt *jwt.JWTGenerator, opts ...Options) (*Adapter, error) {
 	var baseURL string
 
 	switch conf.Service.UseTls {
@@ -45,6 +49,13 @@ func NewAdapter(repo ports.Database, conf *config.Config, opts ...Options) (*Ada
 	}
 
 	return adapter, nil
+}
+
+func WithJWTGenerator(jwt *jwt.JWTGenerator) Options {
+	return func(a *Adapter) error {
+		a.jwt = jwt
+		return nil
+	}
 }
 
 func WithClient(client *client.Client) Options {

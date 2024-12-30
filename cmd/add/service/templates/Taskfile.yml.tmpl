@@ -6,7 +6,7 @@ dotenv: [".env"]
 tasks:
   run:
     cmds:
-      - go run cmd/main.go
+      - go run cmd/{{.Name}}.go
 
   metrics:
     cmds:

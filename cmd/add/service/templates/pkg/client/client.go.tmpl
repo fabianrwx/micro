@@ -2,13 +2,17 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
+	"{{.ModuleName}}/config"
 )
 
 // Client defines the HTTP client structure
@@ -22,11 +26,12 @@ type Client struct {
 type Option func(*Client)
 
 // NewClient creates a new client with the provided options
-func NewClient(opts ...Option) *Client {
+func NewClient(conf *config.Config, opts ...Option) Client {
 
 	transport := &http.Transport{}
 
-	client := &Client{
+	client := Client{
+		baseURL: conf.Authentication.Host,
 		httpClient: &http.Client{
 			Timeout:   5 * time.Second,
 			Transport: transport,
@@ -35,9 +40,9 @@ func NewClient(opts ...Option) *Client {
 	}
 
 	for _, opt := range opts {
-		opt(client)
+		opt(&client)
 	}
-	
+
 	return client
 }
 
@@ -97,11 +102,9 @@ func WithTLSConfig(tlsConfig *tls.Config) Option {
 		}
 	}
 }
-
-// DoRequest performs an HTTP request
 func (c *Client) DoRequest(method, path string, body interface{}, headers map[string]string) (*http.Response, error) {
-	url := fmt.Sprintf("%s%s", c.baseURL, path)
 	var requestBody io.Reader
+
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
@@ -111,26 +114,76 @@ func (c *Client) DoRequest(method, path string, body interface{}, headers map[st
 		requestBody = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequest(method, url, requestBody)
-	if err != nil {
-		slog.Error("failed to create request", "error", err)
-		return nil, err
+	// Create a context with a timeout (adjust as needed)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create a wait group to wait for all requests to complete
+	var wg sync.WaitGroup
+
+	urls := strings.Split(c.baseURL, ",")
+
+	wg.Add(len(urls)) 
+
+	// Create a channel to receive the first successful response
+	respChan := make(chan *http.Response)
+	errChan := make(chan error)
+
+	// Send requests to all servers concurrently
+	for _, baseURL := range urls {
+		go func(baseURL string) {
+			defer wg.Done()
+
+			url := fmt.Sprintf("%s%s", baseURL, path)
+
+			req, err := http.NewRequestWithContext(ctx, method, url, requestBody)
+			if err != nil {
+				slog.Error("failed to create request", "error", err)
+				{{ raw "errChan <- err" }}
+				return
+			}
+
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := c.httpClient.Do(req)
+			if err != nil {
+				slog.Warn("request failed", "error", err, "baseURL", baseURL)
+				{{ raw "errChan <- err" }}
+				return
+			}
+
+			// Send the successful response to the channel
+			select {
+			{{ raw "case respChan <- resp:" }}
+				// First successful response sent
+			default:
+				// Another response was already sent, close this one
+				resp.Body.Close()
+			}
+		}(baseURL)
 	}
 
-	// Add default headers
-	for k, v := range c.headers {
-		req.Header.Set(k, v)
-	}
-	// Add request-specific headers
-	for k, v := range headers {
-		req.Header.Set(k, v)
-	}
+	// Wait for the first successful response or all errors
+	var resp *http.Response
+	var err error
 
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	select {
+	{{ raw "case resp = <-respChan:" }}
+		// Received a successful response
+	{{ raw "case err = <-errChan:" }}
+		// Received an error
+	{{ raw "case <-ctx.Done():" }}
+		// Context timed out
+		err = ctx.Err()
 	}
+   v
+	// Cancel the context to stop any remaining requests
+	cancel()
 
-	return c.httpClient.Do(req)
+	// Wait for all goroutines to finish
+	wg.Wait()nmbgm  nmgbngb nbbbbnvvcvmcvmnvnmnnvbm kjfgvb z z
+
+	return resp, err
 }
 
 // ParseResponse parses an HTTP response into the given interface

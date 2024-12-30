@@ -24,7 +24,7 @@ func TestJWT_ExpiredToken(t *testing.T) {
 	}
 
 	roles := []string{
-		jwt.RoleAdministrator.GetRole(),
+		jwt.RoleAdministrator.String(),
 	}
 
 	for _, tc := range tests {
@@ -58,7 +58,7 @@ func TestJWT_Make(t *testing.T) {
 	}
 
 	roles := []string{
-		jwt.RoleEndUser.GetRole(),
+		jwt.RoleEndUser.String(),
 	}
 
 	for _, tt := range tests {

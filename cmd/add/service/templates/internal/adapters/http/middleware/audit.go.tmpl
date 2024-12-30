@@ -1,0 +1,97 @@
+package middlewares
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"{{ .ModuleName }}/config"
+	"{{ .ModuleName }}/pkg/client"
+	"github.com/google/uuid"
+)
+
+// AuditMiddleware creates a Chi middleware that logs requests and responses to an audit service.
+// AuditMiddleware creates a Chi middleware that logs requests and responses to an audit service.
+// It fails the request (by logging an error) if the audit log post fails, but still captures
+// and logs the response if the original request succeeds.
+func AuditMiddleware(conf *config.Config, client *client.Client) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			slog.Info("Audit Middleware")
+
+			// 1. Generate a unique request ID (if not already present)
+			requestID := r.Header.Get("X-Request-ID")
+			if requestID == "" {
+				requestID = uuid.New().String()
+				r.Header.Set("X-Request-ID", requestID)
+			}
+
+			// 2. Read and restore the request body for downstream handlers
+			var requestBody []byte
+			if r.Body != nil {
+				var err error
+				requestBody, err = io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+					return
+				}
+				r.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+			}
+
+			// 3. Build audit log details
+			startTime := time.Now()
+			service := conf.Service.Name
+			method := r.Method
+			user := "admin" // Replace with actual user extraction logic
+			endpoint := r.URL.Path
+			metadata := map[string]string{
+				"remote_addr": r.RemoteAddr,
+				"endpoint":    endpoint,
+			}
+
+			client.SetBaseURL("http://localhost:81/api/v1")
+
+			// 4. Create an audit log request
+			auditLog := map[string]interface{}{
+				"service":    service,
+				"request_id": requestID,
+				"method":     method,
+				"user":       user,
+				"metadata":   metadata,
+				"duration":   "", // Placeholder for duration
+				"request":    string(requestBody),
+			}
+
+			// 5. Capture response and duration
+			rw := &responseWriter{w, http.StatusOK, bytes.NewBuffer(nil)}
+
+			defer func() {
+				duration := time.Since(startTime)
+				auditLog["duration"] = duration.String()
+
+				// 6. Update the audit log with response details
+				resp := fmt.Sprintf(`{ "status": "%d", "description": "%s", "body": "%s" }`, rw.status, http.StatusText(rw.status), rw.body.String())
+				auditLog["response"] = resp
+
+				// 7. Attempt to post the audit log
+				_, err := client.Post("/auditlogs", auditLog, map[string]string{
+					"Content-Type": "application/json",
+				})
+
+				if err != nil {
+					// Log the error and signal failure (this will not affect the original response)
+					slog.Error("Failed to send audit log, failing request", "error", err)
+					// Optionally, you can send an internal server error response here, but it might be redundant.
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+
+				next.ServeHTTP(rw, r)
+
+			}()
+		})
+	}
+}
