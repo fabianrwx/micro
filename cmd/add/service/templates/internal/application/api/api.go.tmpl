@@ -2,23 +2,21 @@ package api
 
 import (
 	"time"
-	"{{ .ModuleName }}/config"
-	"{{ .ModuleName }}/internal/ports"
-	"{{ .ModuleName }}/pkg/client"
-	"{{ .ModuleName }}/pkg/jwt"
+
+	"{{ .ModuleName }}/node/config"
+	"{{ .ModuleName }}/node/internal/ports"
+	"{{ .ModuleName }}/node/pkg/client"
+	"{{ .ModuleName }}/node/pkg/jwt"
 )
 
 type Adapter struct {
 	repo   ports.Database
-	client *client.Client
+	client client.Client
 	conf   *config.Config
 	jwt    *jwt.JWTGenerator
-
-
 }
 
 type Options func(*Adapter) error
-
 
 func NewAdapter(repo ports.Database, conf *config.Config, jwt *jwt.JWTGenerator, opts ...Options) (*Adapter, error) {
 	var baseURL string
@@ -31,6 +29,7 @@ func NewAdapter(repo ports.Database, conf *config.Config, jwt *jwt.JWTGenerator,
 	}
 
 	client := client.NewClient(
+		conf,
 		client.WithBaseURL(baseURL),
 		client.WithTimeout(5*time.Second),
 		client.WithTLSConfig(nil),
@@ -58,7 +57,7 @@ func WithJWTGenerator(jwt *jwt.JWTGenerator) Options {
 	}
 }
 
-func WithClient(client *client.Client) Options {
+func WithClient(client client.Client) Options {
 	return func(a *Adapter) error {
 		a.client = client
 		return nil
